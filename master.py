@@ -211,7 +211,7 @@ class Server(object):
                 log(LOG_VERBOSE, addrstr, 'mismatched challenge: '
                     '{0!r} != {1!r}'.format(info['challenge'], self.challenge))
                 return False
-            self.protocol = info['protocol']
+            self.protocols = info['protocol'].split(',')
             self.empty = (info['clients'] == '0')
             self.full = (info['clients'] == info['sv_maxclients'])
         except KeyError as ex:
@@ -322,14 +322,14 @@ def getmotd(sock, addr, data):
 
 def filterservers(slist, af, protocol, empty, full):
     '''Return those servers in slist that test true (have been verified) and:
-    - whose protocol matches `protocol'
+    - whose protocols contain `protocol'
     - if `ext' is not set, are IPv4
     - if `empty' is not set, are not empty
     - if `full' is not set, are not full'''
     return [s for s in slist if s
             and af in (AF_UNSPEC, s.addr.family)
             and not s.timed_out()
-            and s.protocol == protocol
+            and protocol in s.protocols
             and (empty or not s.empty)
             and (full  or not s.full)]
 
