@@ -205,9 +205,10 @@ class MasterConfig(object):
         parser.add_option('-n', '--max-servers', type = 'int',
                           help = 'Maximum number of servers to track',
                           metavar = 'NUM')
-        parser.add_option('-p', '--port', type = 'int', default = 30710,
-                          help = 'Port for incoming requests',
-                          metavar = 'NUM')
+        parser.add_option('-p', '--port', action='append', type = 'int',
+                          dest='ports', help = 'Port for incoming requests. '
+                          'May be specified multiple times to listen on '
+                          'additional ports.', metavar = 'NUM')
         parser.add_option('-P', '--challengeport', type = 'int',
                           help = 'Port for outgoing challenges',
                           metavar = 'NUM')
@@ -277,16 +278,21 @@ class MasterConfig(object):
 
             self.log(LOG_VERBOSE, 'UID set to', getuid())
 
+        if self.ports is None:
+            self.ports = [30710]
+        else:
+            self.ports = sorted(set(self.ports))
+
         if self.challengeport is None:
-            if self.port == 0xffff:
-                self.challengeport = 0xffff - 1
-            else:
-                self.challengeport = self.port + 1
+            self.challengeport = self.ports[-1] + 1
+            while self.challengeport > 0xffff or \
+               self.challengeport in self.ports:
+                self.challengeport = (self.challengeport & 0xffff) + 1
             self.log(LOG_VERBOSE, 'Automatically set challenge port to',
                                   self.challengeport)
-        elif self.challengeport == self.port:
-            raise ConfigError('Request port and challenge port must not be '
-                              'the same ({0})'.format(self.port))
+        elif self.challengeport in self.ports:
+            raise ConfigError('Challenge port cannot be the same as a request '
+                              'port ({0})'.format(self.challengeport))
 
     def files(self):
         '''Read self.FEATURED_FILE, and for each label (starting at column 0)
