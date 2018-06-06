@@ -2,6 +2,7 @@
 ###############################################################################
 # master.py - a master server for Tremulous
 # Copyright (c) 2009-2011 Ben Millwood
+# Copyright (c) 2015 Jeff Kent
 #
 # Thanks to Mathieu Olivier, who wrote much of the original master in C
 # (this project shares none of his code, but used it as a reference)
@@ -79,8 +80,10 @@ except ImportError:
 else:
     signal(SIGHUP, SIG_IGN)
 
+inSocks = list()
+
 # dict: socks[address_family].family == address_family
-inSocks, outSocks = dict(), dict()
+outSocks = dict()
 
 # dict of [label][addr] -> Server instance
 servers = dict((label, dict()) for label in
@@ -491,19 +494,25 @@ def serialise():
         log(LOG_PRINT, 'Wrote serverlist.txt')
 
 try:
+    all_ports = sorted(set(config.ports + [config.challengeport]))
+
     if config.ipv4 and config.listen_addr:
         log(LOG_PRINT, 'IPv4: Listening on', config.listen_addr,
-                       'ports', config.port, 'and', config.challengeport)
-        inSocks[AF_INET] = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
-        inSocks[AF_INET].bind((config.listen_addr, config.port))
+                       'ports', ', '.join(str(port) for port in all_ports))
+        for port in config.ports:
+            s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+            s.bind((config.listen_addr, port))
+            inSocks.append(s)
         outSocks[AF_INET] = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         outSocks[AF_INET].bind((config.listen_addr, config.challengeport))
 
     if config.ipv6 and config.listen6_addr:
         log(LOG_PRINT, 'IPv6: Listening on', config.listen6_addr,
-                       'ports', config.port, 'and', config.challengeport)
-        inSocks[AF_INET6] = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
-        inSocks[AF_INET6].bind((config.listen6_addr, config.port))
+                       'ports', ', '.join(str(port) for port in all_ports))
+        for port in config.ports:
+            s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
+            s.bind((config.listen_addr, port))
+            inSocks.append(s)
         outSocks[AF_INET6] = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
         outSocks[AF_INET6].bind((config.listen6_addr, config.challengeport))
 
@@ -523,7 +532,7 @@ except IOError as err:
 
 def mainloop():
     try:
-        ret = select(chain(inSocks.values(), outSocks.values()), [], [])
+        ret = select(chain(inSocks, outSocks.values()), [], [])
         ready = ret[0]
     except selecterror as err:
         # select can be interrupted by a signal: if it wasn't a fatal signal,
@@ -532,7 +541,7 @@ def mainloop():
             return
         raise
     prune_timeouts()
-    for sock in inSocks.values():
+    for sock in inSocks:
         if sock in ready:
             # FIXME: 2048 magic number
             (data, addr) = sock.recvfrom(2048)
