@@ -1,5 +1,6 @@
 # config.py
 # Copyright (c) Ben Millwood 2009
+# Copyright (c) Darren Salt 2012
 # This file is part of the Tremulous Master server.
 '''Configuration for the Tremulous Master
 
@@ -70,16 +71,24 @@ from utils import inet_pton, valid_addr, stringtosockaddr
 # Optional imports
 # I named these variables in line with the standard library's has_ipv6.
 # Surely that should be have_ipv6?
-has_chroot, has_setuid = True, True
+has_chroot, has_setuid, has_setgid, has_setgroups = True, True, True, True
 try:
-    from os import chroot
+    from os import chdir, chroot
 except ImportError:
     has_chroot = False
 try:
+    from pwd import getpwnam, getpwuid, getpwall
     from os import setuid, getuid
-    from pwd import getpwnam
 except ImportError:
     has_setuid = False
+try:
+    from os import setgid, getgid
+except ImportError:
+    has_setgid = False
+try:
+    from os import setgroups, getgroups
+except ImportError:
+    has_setgroups = False
 
 # I don't have a non-IPv6 computer, so I'm not sure how this works
 try:
@@ -254,26 +263,50 @@ class MasterConfig(object):
         if not self.ipv4 and not self.ipv6:
             raise ConfigError('Cannot specify both --ipv4 and --ipv6')
 
+        if self.user is not None:
+            try:
+                pwnam = getpwnam(self.user)
+                uid = pwnam.pw_uid
+            except KeyError:
+                try:
+                    uid = int(self.user)
+                    pwnam = getpwuid(uid)
+                except ValueError:
+                    raise ConfigError(self.user, 'no such user', sep = ': ')
+
+            if has_setgid:
+                gid = pwnam.pw_gid
+
         if self.jail is not None:
             try:
-                chroot(self.jail)
+                chdir(self.jail)
+                chroot('.')
             except OSError as err:
                 raise ConfigError('chroot {0}:'.format(self.jail),
                                   err.strerror)
             self.log(LOG_VERBOSE, 'Chrooted to', self.jail)
-        if self.user is not None:
-            try:
-                uid = getpwnam(self.user).pw_uid
-            except KeyError:
-                try:
-                    uid = int(self.user)
-                except ValueError:
-                    raise ConfigError(self.user, 'no such user', sep = ': ')
 
+        if self.user is not None:
+            # okay, probably root at this point
+            if has_setgroups:
+                try:
+                    setgroups(())
+                except OSError as err:
+                    raise ConfigError('setgroups:', err.strerror)
+
+            if has_setgid:
+                try:
+                    setgid(gid)
+                except OSError as err:
+                    raise ConfigError('setgid {0}:'.format(gid), err.strerror)
+
+            # setuid last, so setgroups & setgid don't fail
             try:
                 setuid(uid)
             except OSError as err:
                 raise ConfigError('setuid {0}:'.format(uid), err.strerror)
+
+            pwnam = None
 
             self.log(LOG_VERBOSE, 'UID set to', getuid())
 
