@@ -6,7 +6,7 @@ from hashlib import md5
 
 db_id = 'Using SQLite database backend'
 
-unicise = partial(unicode, encoding = 'utf-8')
+unicise = partial(str, encoding = 'utf-8')
 
 def log_client(addr, info):
     renderer = unicise(info['renderer'])

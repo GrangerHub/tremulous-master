@@ -87,7 +87,7 @@ outSocks = dict()
 
 # dict of [label][addr] -> Server instance
 servers = dict((label, dict()) for label in
-               chain(config.featured_servers.keys(), [None]))
+               chain(list(config.featured_servers.keys()), [None]))
 
 class Addr(tuple):
     '''Data structure for storing socket addresses, that provides parsing
@@ -139,7 +139,7 @@ class Info(dict):
     def __str__(self):
         '''Converts self[key1] == value1, self[key2] == value2[, ...] to
         \\key1\\value1\\key2\\value2\\...'''
-        return '\\{0}\\'.format('\\'.join(i for t in self.iteritems()
+        return '\\{0}\\'.format('\\'.join(i for t in list(self.items())
                                             for i in t))
 
     def parse(self, input):
@@ -164,7 +164,7 @@ class Server(object):
         self.lastactive = 0
         self.timeout = 0
 
-    def __nonzero__(self):
+    def __bool__(self):
         '''Server has replied to a challenge'''
         return bool(self.lastactive)
 
@@ -242,8 +242,8 @@ def safe_send(sock, data, addr):
 def find_featured(addr):
     # docstring TODO
     # just in case it's an Addr
-    for (label, addrs) in config.featured_servers.iteritems():
-        if addr in addrs.keys():
+    for (label, addrs) in list(config.featured_servers.items()):
+        if addr in list(addrs.keys()):
             return label
     else:
         return None
@@ -251,7 +251,7 @@ def find_featured(addr):
 def prune_timeouts(slist = servers[None]):
     '''Removes from the list any items whose timeout method returns true'''
     # iteritems gives RuntimeError: dictionary changed size during iteration
-    for (addr, server) in slist.items():
+    for (addr, server) in list(slist.items()):
         if server.timed_out():
             del slist[addr]
             remstr = str(count_servers())
@@ -273,12 +273,12 @@ def challenge():
     them into '.' and therefore fail to match.
     For compatibility testing purposes, I've temporarily disallowed them again.
     '''
-    valid = [c for c in map(chr, range(0x21, 0x7f)) if c not in '\\;%\"/']
+    valid = [c for c in map(chr, list(range(0x21, 0x7f))) if c not in '\\;%\"/']
     return ''.join(choice(valid) for _ in range(config.CHALLENGE_LENGTH))
 
 def count_servers(slist = servers):
     # docstring TODO
-    return sum(map(len, servers.values()))
+    return sum(map(len, list(servers.values())))
 
 def gamestat(addr, data):
     '''Delegates to log_gamestat, cutting the first token (that it asserts is
@@ -371,17 +371,17 @@ def getservers(sock, addr, data):
 
     max = config.GSR_MAXSERVERS
     packets = {None: list()}
-    for label in servers.keys():
+    for label in list(servers.keys()):
         # dict of lists of lists
         if ext:
             packets[label] = list()
-            filtered = filterservers(servers[label].values(),
+            filtered = filterservers(list(servers[label].values()),
                                      family, protocol, empty, full)
             while len(filtered) > 0:
                 packets[label].append(filtered[:config.GSR_MAXSERVERS])
                 filtered = filtered[config.GSR_MAXSERVERS:]
         else:
-            filtered = filterservers(servers[label].values(),
+            filtered = filterservers(list(servers[label].values()),
                                      family, protocol, empty, full)
             if not packets[None]:
                 packets[None].append(filtered[:config.GSR_MAXSERVERS])
@@ -399,12 +399,12 @@ def getservers(sock, addr, data):
                                       'Ext' if ext else '')
 
     index = 1
-    numpackets = sum(len(ps) for ps in packets.values())
+    numpackets = sum(len(ps) for ps in list(packets.values()))
     if numpackets == 0:
         # send an empty packet
         numpackets = 1
         packets[None] = [[]]
-    for label, packs in packets.items():
+    for label, packs in list(packets.items()):
         if label is None:
             label = ''
         for packet in packs:
@@ -429,7 +429,7 @@ def heartbeat(addr, data):
     addrstr = '<< {0}:'.format(addr)
     if 'dead' in data:
         if label is None:
-            if addr in servers[None].keys():
+            if addr in list(servers[None].keys()):
                 log(LOG_VERBOSE, addrstr, 'flatline, dropped')
                 del servers[label][addr]
             else:
@@ -444,7 +444,7 @@ def heartbeat(addr, data):
     else:
         # fetch or create a server record
         label = find_featured(addr)
-        s = servers[label][addr] if addr in servers[label].keys() else Server(addr)
+        s = servers[label][addr] if addr in list(servers[label].keys()) else Server(addr)
         s.send_challenge()
         servers[label][addr] = s
 
@@ -476,7 +476,7 @@ def deserialise():
             else:
                 addrstr = '<< {0}:'.format(addr)
                 log(LOG_DEBUG, addrstr, 'Read from the cache')
-                if addr.family not in outSocks.keys():
+                if addr.family not in list(outSocks.keys()):
                      famstr = {AF_INET: 'IPv4', AF_INET6: 'IPv6'}[addr.family]
                      log(LOG_PRINT, addrstr, famstr,
                          'not available, dropping from cache')
@@ -490,7 +490,7 @@ def deserialise():
 
 def serialise():
     with open('serverlist.txt', 'w') as f:
-        f.write('\n'.join(str(s) for sl in servers.values() for s in sl))
+        f.write('\n'.join(str(s) for sl in list(servers.values()) for s in sl))
         log(LOG_PRINT, 'Wrote serverlist.txt')
 
 try:
@@ -532,7 +532,7 @@ except IOError as err:
 
 def mainloop():
     try:
-        ret = select(chain(inSocks, outSocks.values()), [], [])
+        ret = select(chain(inSocks, list(outSocks.values())), [], [])
         ready = ret[0]
     except selecterror as err:
         # select can be interrupted by a signal: if it wasn't a fatal signal,
@@ -572,7 +572,7 @@ def mainloop():
                     break
             else:
                 log(LOG_VERBOSE, addrstr, 'unrecognised content:', repr(data))
-    for sock in outSocks.values():
+    for sock in list(outSocks.values()):
         if sock in ready:
             (data, addr) = sock.recvfrom(2048)
             saddr = Addr(addr, sock.family)
@@ -589,8 +589,8 @@ def mainloop():
             label = find_featured(addr)
             # if label = find_featured(addr) is not None, it should be the
             # case that servers[label][addr] exists
-            assert label is None or addr in servers[label].keys(), label
-            if label is None and addr not in servers[None].keys():
+            assert label is None or addr in list(servers[label].keys()), label
+            if label is None and addr not in list(servers[None].keys()):
                 log(LOG_VERBOSE, addrstr, 'rejected (unsolicited)')
                 continue
             # this has got to be an infoResponse, right?

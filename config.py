@@ -103,7 +103,7 @@ except ImportError:
     LOG_VERBOSE,
     LOG_DEBUG,
     LOG_LEVELS
-) = range(6)
+) = list(range(6))
 # and their names
 loglevels = ['ALWAYS', 'ERROR', 'PRINT', 'VERBOSE', 'DEBUG']
 
@@ -363,7 +363,7 @@ class MasterConfig(object):
                             raise ConfigError(wheremsg, "Error: couldn't "
                                               'convert', addr,
                                               'to address format:', err)
-                        if saddr in self.featured_servers[label].keys():
+                        if saddr in list(self.featured_servers[label].keys()):
                             self.log(LOG_PRINT, wheremsg, 'Warning:',
                                      saddr, 'appears multiple times')
                         self.featured_servers[label][saddr] = None
@@ -380,7 +380,7 @@ class MasterConfig(object):
                                 # featured.txt: 'Label': [server1, server2,...]
                                 self.log(LOG_VERBOSE, self.FEATURED_FILE,
                                          repr(label),
-                                         self.featured_servers[label].keys(),
+                                         list(self.featured_servers[label].keys()),
                                          sep = ': ')
                         label = line
                         for c in label:
@@ -395,7 +395,7 @@ class MasterConfig(object):
                     # print a message of the form
                     # featured.txt: 'Label': [server1, server2, ...]
                     self.log(LOG_VERBOSE, self.FEATURED_FILE, repr(label),
-                             self.featured_servers[label].keys(), sep = ': ')
+                             list(self.featured_servers[label].keys()), sep = ': ')
         except IOError as err:
             if err.errno != ENOENT:
                 raise

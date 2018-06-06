@@ -24,7 +24,7 @@ except ImportError:
                 if len(bits) == 2:
                     # The filter(bool) replaces [''] with [] in the case that
                     # :: begins or ends a string (so bits[i] would be empty)
-                    lead, trail = [filter(bool, s.split(':')) for s in bits]
+                    lead, trail = [list(filter(bool, s.split(':'))) for s in bits]
                     full = [int(s, 16) for s in lead]
                     full += [0 for _ in range(8 - len(lead) - len(trail))]
                     full += [int(s, 16) for s in trail]
